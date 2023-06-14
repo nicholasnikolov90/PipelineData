@@ -24,7 +24,6 @@ BendNodes = pd.read_csv("nodes.csv")
 #General stress, convert the total stress column to a float, to use in calculation
 gs['Total Stress'] = gs['Total Stress'].astype(float)
 
-
 #Data clean up
 #Removes all duplicates based on soil points and bend midpoints
 #replaces the points column in the original dataset to avoid any extra memory use
@@ -42,22 +41,14 @@ allowables = cs.reset_index()
 allowables = allowables.set_index(['Point', 'Category', 'Allowable'])
 allowables = allowables.groupby(level=['Point', 'Allowable']).max().reset_index().drop(['Stress', 'Ratio'], axis = 1).set_index(['Point']).groupby(level='Point').max().sort_index()
 
-#General stress cleanu
+#General stress cleanup
 gs = gs.set_index(['Point'])
 gs = gs.groupby(level='Point').max().sort_index()
 #Add the ratio column to general stress
 gs['General Stress Ratio'] = ((gs['Total Stress'].astype(float) /allowables['Allowable'].astype(float))*100).round(1)
 
-#print(cs['Category']['General Stress'] = gs['General Stress Ratio'])
-cs = cs.reset_index()
-gs = gs.reset_index()
-print(cs)
-print(gs)
-overall = pd.merge(gs, cs, on=['Point'])
-print(overall)
-
-#overall_results = pd.merge(gs, cs, left_index=True, right_index=True)
-#print(overall_results)
+cs = pd.pivot_table(cs, values = 'Ratio', index = ['Point'], columns = 'Category')
+gs = pd.pivot_table(gs, values='General Stress Ratio', index = ['Point'])
 
 #Displacements: calculate horizontal displacements
 #Creates a new column HD = horizontal displacement (sqrt(x^2 + z^2))
@@ -67,20 +58,12 @@ disp = disp.set_index(['Point'])
 disp = disp.groupby(level='Point').max()
 disp = disp.rename(columns={'DY': 'Vertical Displacement'}).drop(['DX','DZ'], axis=1) # leave only the maximum displacements
 
+overall_results = pd.merge(disp, cs, left_on=['Point'], right_index=True)
+overall_results = pd.merge(overall_results, gs, left_on=['Point'], right_index=True)
 
-
-
-#Creates the code stress results table using a pivot table. 
-table = pd.pivot_table(cs, values='Ratio',index=points, columns='Category', aggfunc=np.max)
-
-#combine the general stresses and code stresses & cleanup the index column
-#Change round(x) to x number of decimal points needed.
-df_merged = table.merge(merged[['Point', 'General', 'Horizontal Displacement', 'Vertical Displacements']], on='Point').round(1)
-df_merged = df_merged.set_index('Point').T
-
-#RESULTS. This displays results localy for debugging purposes. 
-BendResults = df_merged[BendNodes['Nodes']].T
-BendResults
+#RESULTS. 
+#Prints only the results for the nodes needed
+BendResults = overall_results.loc[BendNodes['Nodes']]
 
 #OUTPUT RESULTS TO EXCEL
 BendResults.to_excel("output.xlsx")  
