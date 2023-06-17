@@ -10,6 +10,18 @@ import re
 #NOTES
 #Only make modifications to this first code block. 
 
+#options
+#try blocks for each csv file
+#get user input for which files are read, add user inputs in a list
+#Assume cs is read, 
+#try all reading in try except, 
+#where allowables is interdependant - use another try block
+
+#fill with zeros using - fillNaN 
+#
+
+#Choose scenarios for which files they have
+
 #*INPUTS* 
 #Legend of variables
 #cs = code stress results grid, saved as a csv
@@ -47,6 +59,7 @@ gs = gs.groupby(level='Point').max().sort_index()
 #Add the ratio column to general stress
 gs['General Stress Ratio'] = ((gs['Total Stress'].astype(float) /allowables['Allowable'].astype(float))*100).round(1)
 
+#turn general stress and code stresses into pivot tables
 cs = pd.pivot_table(cs, values = 'Ratio', index = ['Point'], columns = 'Category')
 gs = pd.pivot_table(gs, values='General Stress Ratio', index = ['Point'])
 
@@ -58,12 +71,14 @@ disp = disp.set_index(['Point'])
 disp = disp.groupby(level='Point').max()
 disp = disp.rename(columns={'DY': 'Vertical Displacement'}).drop(['DX','DZ'], axis=1) # leave only the maximum displacements
 
+#Merge all results into one sheet
 overall_results = pd.merge(disp, cs, left_on=['Point'], right_index=True)
 overall_results = pd.merge(overall_results, gs, left_on=['Point'], right_index=True)
 
 #RESULTS. 
 #Prints only the results for the nodes needed
 BendResults = overall_results.loc[BendNodes['Nodes']]
+print(BendResults)
 
 #OUTPUT RESULTS TO EXCEL
 BendResults.to_excel("output.xlsx")  
