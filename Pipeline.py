@@ -18,7 +18,6 @@ import re
 #where allowables is interdependant - use another try block
 
 #fill with zeros using - fillNaN 
-#
 
 #Choose scenarios for which files they have
 
@@ -28,6 +27,7 @@ import re
 #gs = general stress results grid, saved as a csv
 #disp = displacements results grid, saved as a csv
 #BendNodes = node numbers of bends. Input into the first column A. Start at Node A01. A00 should be "nodes"
+
 cs = pd.read_csv('100cs.csv', usecols = ['Point', 'Category', 'Stress', 'Allowable'], low_memory=False).tail(-1)
 gs = pd.read_csv('100G.csv',usecols = ['Point', 'Total Stress'], low_memory=False).tail(-1)
 disp = pd.read_csv('100d.csv',usecols = ['Point', 'DX', 'DY','DZ'], low_memory=False).tail(-1)
