@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import re
 
+#Author: Nick Nikolov
+
 #INSTRUCTIONS
 #1. Copy entire Code stress results grid, general stress results grid, and displacements results grid into separate .csv files.
 #2. Create a .csv file for all bend node numbers / any nodes you need results at.
@@ -10,74 +12,63 @@ import re
 #NOTES
 #Only make modifications to this first code block. 
 
-#options
-#try blocks for each csv file
-#get user input for which files are read, add user inputs in a list
-#Assume cs is read, 
-#try all reading in try except, 
-#where allowables is interdependant - use another try block
-
-#fill with zeros using - fillNaN 
-
-#Choose scenarios for which files they have
-
 #*INPUTS* 
 #Legend of variables
-#cs = code stress results grid, saved as a csv
-#gs = general stress results grid, saved as a csv
-#disp = displacements results grid, saved as a csv
-#BendNodes = node numbers of bends. Input into the first column A. Start at Node A01. A00 should be "nodes"
+#code_stresses = code stress results grid, saved as a csv
+#general_stresses = general stress results grid, saved as a csv
+#displacements = displacements results grid, saved as a csv
+#bend_nodes = node numbers of bends. Input into the first column A. Start at Node A01. A00 should be "nodes"
 
-cs = pd.read_csv('100cs.csv', usecols = ['Point', 'Category', 'Stress', 'Allowable'], low_memory=False).tail(-1)
-gs = pd.read_csv('100G.csv',usecols = ['Point', 'Total Stress'], low_memory=False).tail(-1)
-disp = pd.read_csv('100d.csv',usecols = ['Point', 'DX', 'DY','DZ'], low_memory=False).tail(-1)
-BendNodes = pd.read_csv("nodes.csv")
+#reads all the data from csv files
+code_stresses = pd.read_csv('100cs.csv', usecols = ['Point', 'Category', 'Stress', 'Allowable'], low_memory=False).tail(-1)
+general_stresses = pd.read_csv('100G.csv',usecols = ['Point', 'Total Stress'], low_memory=False).tail(-1)
+displacements = pd.read_csv('100d.csv',usecols = ['Point', 'DX', 'DY','DZ'], low_memory=False).tail(-1)
+bend_nodes = pd.read_csv("nodes.csv")
 
-#General stress, convert the total stress column to a float, to use in calculation
-gs['Total Stress'] = gs['Total Stress'].astype(float)
+#convert the total stress column to a float, to use in calculations
+general_stresses['Total Stress'] = general_stresses['Total Stress'].astype(float)
 
 #Data clean up
 #Removes all duplicates based on soil points and bend midpoints
-#replaces the points column in the original dataset to avoid any extra memory use
-cs['Point'] = cs['Point'].str.split('[ NFM]').str[0]
-gs['Point'] = gs['Point'].str.split('[ NMF]').str[0]
-disp['Point'] = disp['Point'].str.split('[ NMF]').str[0]
+code_stresses['Point'] = code_stresses['Point'].str.split('[ NFM]').str[0]
+general_stresses['Point'] = general_stresses['Point'].str.split('[ NMF]').str[0]
+displacements['Point'] = displacements['Point'].str.split('[ NMF]').str[0]
 
-#Manually calculate 'ratio' column to get more significant digits than the code stress tab gives
-cs['Ratio'] = ((cs['Stress'].astype(float) / cs['Allowable'].astype(float))*100).round(2)
-cs = cs.set_index(['Point', 'Category'])
-cs = cs.groupby(level=['Point', 'Category']).max().sort_index()
+#Manually calculate 'ratio' column of the code stresses to get more significant digits than the code stress tab gives
+code_stresses['Ratio'] = ((code_stresses['Stress'].astype(float) / code_stresses['Allowable'].astype(float))*100).round(2)
+code_stresses = code_stresses.set_index(['Point', 'Category'])
+code_stresses = code_stresses.groupby(level=['Point', 'Category']).max().sort_index()
 
-#extract allowables only for use in general stress array
-allowables = cs.reset_index()
+#extract material allowables at each node (only for use in general stress array)
+allowables = code_stresses.reset_index()
 allowables = allowables.set_index(['Point', 'Category', 'Allowable'])
 allowables = allowables.groupby(level=['Point', 'Allowable']).max().reset_index().drop(['Stress', 'Ratio'], axis = 1).set_index(['Point']).groupby(level='Point').max().sort_index()
 
 #General stress cleanup
-gs = gs.set_index(['Point'])
-gs = gs.groupby(level='Point').max().sort_index()
+general_stresses = general_stresses.set_index(['Point'])
+general_stresses = general_stresses.groupby(level='Point').max().sort_index()
 #Add the ratio column to general stress
-gs['General Stress Ratio'] = ((gs['Total Stress'].astype(float) /allowables['Allowable'].astype(float))*100).round(1)
+general_stresses['General Stress Ratio'] = ((general_stresses['Total Stress'].astype(float) /allowables['Allowable'].astype(float))*100).round(1)
 
 #turn general stress and code stresses into pivot tables
-cs = pd.pivot_table(cs, values = 'Ratio', index = ['Point'], columns = 'Category')
-gs = pd.pivot_table(gs, values='General Stress Ratio', index = ['Point'])
+code_stresses = pd.pivot_table(code_stresses, values = 'Ratio', index = ['Point'], columns = 'Category')
+general_stresses = pd.pivot_table(general_stresses, values='General Stress Ratio', index = ['Point'])
 
 #Displacements: calculate horizontal displacements
-#Creates a new column HD = horizontal displacement (sqrt(x^2 + z^2))
+#Creates a new column for horizontal displacement (sqrt(x^2 + z^2))
 #Remove all duplicates of displacements, leave only max horizontal and max vertical displacements
-disp['Horizontal Displacement'] = ((disp['DX'].astype(float)**2 + disp['DZ'].astype(float)**2)**0.5).round(2)
-disp = disp.set_index(['Point'])
-disp = disp.groupby(level='Point').max()
-disp = disp.rename(columns={'DY': 'Vertical Displacement'}).drop(['DX','DZ'], axis=1) # leave only the maximum displacements
+displacements['Horizontal Displacement'] = ((displacements['DX'].astype(float)**2 + displacements['DZ'].astype(float)**2)**0.5).round(2)
+displacements = displacements.set_index(['Point'])
+displacements = displacements.groupby(level='Point').max()
+displacements = displacements.rename(columns={'DY': 'Vertical Displacement'}).drop(['DX','DZ'], axis=1) # leave only the maximum displacements
 
 #Merge all results into one sheet
-overall_results = pd.merge(disp, cs, left_on=['Point'], right_index=True)
-overall_results = pd.merge(overall_results, gs, left_on=['Point'], right_index=True)
+overall_results = pd.merge(displacements, code_stresses, left_on=['Point'], right_index=True)
+overall_results = pd.merge(overall_results, general_stresses, left_on=['Point'], right_index=True)
 
 #RESULTS. 
 #Prints only the results for the nodes needed
-BendResults = overall_results.loc[BendNodes['Nodes']]
+BendResults = overall_results.loc[bend_nodes['Nodes']]
 print(BendResults)
 
 #OUTPUT RESULTS TO EXCEL
